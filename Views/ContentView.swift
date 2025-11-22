@@ -222,11 +222,10 @@ struct LogView: View {
                         .id("LOG_BOTTOM")
                 }
             }
-            .onChange(of: text) { _ in
+            .onChange(of: text) { oldValue, newValue in
                 withAnimation {
                     proxy.scrollTo("LOG_BOTTOM", anchor: .bottom)
                 }
-            }
-        }
+            }        }
     }
 }
