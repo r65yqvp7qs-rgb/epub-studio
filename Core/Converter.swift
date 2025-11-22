@@ -20,7 +20,7 @@ private let spreadPairRegex =
 // 例: 001L.jpg, p0003R.png など
 private let spreadLRRegex =
     try! NSRegularExpression(pattern: #"(\d+)\s*([LR])"#,
-                              options: [.caseInsensitive])
+                             options: [.caseInsensitive])
 
 /// 論理ページ（PageSide が付く前の段階）
 enum LogicalItem {
@@ -91,17 +91,21 @@ struct Converter {
             options: [.skipsHiddenFiles]
         )
 
-        var volumes: [(folder: URL, images: [URL])] = []
+        var volumesTemp: [(folder: URL, images: [URL])] = []
 
         for url in children {
             let values = try url.resourceValues(forKeys: [.isDirectoryKey])
             if values.isDirectory == true {
                 let imgs = try collectImages(in: url, fm: fm)
                 if !imgs.isEmpty {
-                    volumes.append((url, imgs))
+                    volumesTemp.append((url, imgs))
                 }
             }
         }
+
+        // Swift 6 concurrency 対策：
+        // 以降で async をまたいで使う配列は「let」のスナップショットにする
+        let volumes: [(folder: URL, images: [URL])] = volumesTemp
 
         guard !volumes.isEmpty else {
             await MainActor.run {
@@ -118,16 +122,18 @@ struct Converter {
             state.appendLog("親フォルダ: \(inputFolder.path)")
         }
 
+        let totalVolumes = volumes.count
+
         for (index, entry) in volumes.enumerated() {
-            let base  = Double(index) / Double(volumes.count)
-            let scale = 1.0 / Double(volumes.count)
+            let base  = Double(index) / Double(totalVolumes)
+            let scale = 1.0 / Double(totalVolumes)
 
             try await runOneVolume(
                 folder: entry.folder,
                 images: entry.images,
                 outputRoot: inputFolder,           // ★ 親フォルダ直下に出力
                 volumeIndex: index + 1,
-                totalVolumes: volumes.count,
+                totalVolumes: totalVolumes,
                 state: state,
                 overallBase: base,
                 overallScale: scale
@@ -211,7 +217,7 @@ struct Converter {
         // ================================
         // ① JPEG 化 & サイズ・spread情報収集（0.0〜0.25）
         // ================================
-        var converted: [ConvertedImage] = []
+        var convertedTemp: [ConvertedImage] = []
 
         // 単ページ候補サイズの頻度（基準サイズ決定用）
         // key: "WxH", value: (count, size)
@@ -222,13 +228,15 @@ struct Converter {
             .appendingPathComponent("epub_images_\(UUID().uuidString)")
         try? fm.createDirectory(at: tempImagesRoot, withIntermediateDirectories: true)
 
+        let fileCount = files.count
+
         for (index, src) in files.enumerated() {
 
-            let localProgress = Double(index) / Double(files.count) * 0.25
+            let localProgress = Double(index) / Double(fileCount) * 0.25
             await updateProgress(localProgress)
 
             await MainActor.run {
-                state.appendLog("画像 \(index+1)/\(files.count): \(src.lastPathComponent)")
+                state.appendLog("画像 \(index+1)/\(fileCount): \(src.lastPathComponent)")
             }
 
             // JPEG へ変換
@@ -252,7 +260,7 @@ struct Converter {
                 spreadPair: pair,
                 isWide: wide
             )
-            converted.append(info)
+            convertedTemp.append(info)
 
             // 単ページ候補サイズをカウント
             if pair == nil && !wide {
@@ -261,6 +269,10 @@ struct Converter {
                 singleSizeCount[key] = (current.count + 1, size)
             }
         }
+
+        // Swift 6 対策：以降で async を挟んで使うので let にスナップショット
+        let converted: [ConvertedImage] = convertedTemp
+        let convertedCount = converted.count
 
         // ================================
         // ② 基準単ページサイズを決定
@@ -314,11 +326,11 @@ struct Converter {
 
         for (index, info) in converted.enumerated() {
 
-            let localProgress = 0.25 + Double(index) / Double(converted.count) * 0.35
+            let localProgress = 0.25 + Double(index) / Double(convertedCount) * 0.35
             await updateProgress(localProgress)
 
             await MainActor.run {
-                state.appendLog("配置判定 \(index+1)/\(converted.count): \(info.fileName)")
+                state.appendLog("配置判定 \(index+1)/\(convertedCount): \(info.fileName)")
             }
 
             if let pair = info.spreadPair {
