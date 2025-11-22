@@ -1,21 +1,32 @@
-// Core/EPUBBuilder.swift
+//
+//  EPUBBuilder.swift
+//  EPUB Studio
+//
 
 import Foundation
 
+/// EPUB3 固定レイアウト (Fixed Layout) で EPUB を生成するビルダー
 struct EPUBBuilder {
 
     let title: String
     let author: String
     let outputURL: URL
     let pages: [PageInfo]
+
+    /// 単ページのピクセルサイズ（Converter で決めた baseSize）
     let pageSize: CGSize
+
+    /// ログ出力
     let log: (String) -> Void
+
+    // MARK: - Public
 
     func build() throws {
         log("=== EPUB Builder 開始 (EPUB3 FXL) ===")
 
         let fm = FileManager.default
 
+        // ---- 作業フォルダ構成 ----
         let workDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("epub_work_\(UUID().uuidString)")
 
@@ -33,7 +44,7 @@ struct EPUBBuilder {
 
         log("✓ EPUBフォルダ構造を準備完了")
 
-        // mimetype
+        // ---- mimetype ----
         let mimeURL = workDir.appendingPathComponent("mimetype")
         try "application/epub+zip".write(
             to: mimeURL,
@@ -42,7 +53,7 @@ struct EPUBBuilder {
         )
         log("✓ mimetype 作成")
 
-        // container.xml
+        // ---- META-INF/container.xml ----
         let containerXML = """
         <?xml version="1.0" encoding="UTF-8"?>
         <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -57,7 +68,7 @@ struct EPUBBuilder {
             encoding: .utf8
         )
 
-        // iBooks 固定レイアウト設定
+        // ---- iBooks 固定レイアウト設定 ----
         let ibooksDisplayOptions = """
         <?xml version="1.0" encoding="UTF-8"?>
         <display_options>
@@ -75,7 +86,7 @@ struct EPUBBuilder {
         )
         log("✓ com.apple.ibooks.display-options.xml 作成 (固定レイアウト)")
 
-
+        // ---- 画像コピー & ページ XHTML 作成 ----
         var xhtmlFileNames: [String] = []
         var imageManifestItems: [String] = []
         var xhtmlManifestItems: [String] = []
@@ -84,15 +95,18 @@ struct EPUBBuilder {
         let iso8601Now = currentISO8601()
         let uuid = UUID().uuidString
 
+        // 1ページ目の画像を cover にする
         let coverImageName = pages.first?.imageFile.lastPathComponent
 
         for (i, page) in pages.enumerated() {
             let pageIndex = i + 1
 
+            // 画像コピー
             let imgName = page.imageFile.lastPathComponent
             let imgDst  = imagesDir.appendingPathComponent(imgName)
             try fm.copyItem(at: page.imageFile, to: imgDst)
 
+            // manifest の image item
             let media = mediaType(for: page.imageFile)
 
             let isCover = (imgName == coverImageName)
@@ -104,6 +118,7 @@ struct EPUBBuilder {
                 """
             )
 
+            // XHTML 1ページ分
             let xhtmlName = String(format: "page_%04d.xhtml", pageIndex)
             let xhtmlPath = pagesDir.appendingPathComponent(xhtmlName)
 
@@ -121,10 +136,11 @@ struct EPUBBuilder {
                 """
             )
 
+            // spine item（単ページ / 見開き左右）
             let spreadProp: String
             switch page.side {
             case .single:
-                spreadProp = ""
+                spreadProp = ""           // 属性を付けない → 単ページ扱い
             case .right:
                 spreadProp = #" properties="page-spread-right""#
             case .left:
@@ -138,7 +154,7 @@ struct EPUBBuilder {
 
         log("✓ 画像 & ページ XHTML 作成完了")
 
-        // nav.xhtml
+        // ---- nav.xhtml (EPUB3 TOC) ----
         let navXHTML = makeNavXHTML(xhtmlFileNames: xhtmlFileNames)
         try navXHTML.write(
             to: oebps.appendingPathComponent("nav.xhtml"),
@@ -147,6 +163,9 @@ struct EPUBBuilder {
         )
         log("✓ nav.xhtml 作成")
 
+        // ---- content.opf (EPUB3 FXL) ----
+
+        // manifest
         let manifest =
         """
             <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
@@ -155,9 +174,11 @@ struct EPUBBuilder {
         "\n" + imageManifestItems.joined(separator: "\n") +
         "\n" + xhtmlManifestItems.joined(separator: "\n")
 
+        // spine
         let spine = spineItems.joined(separator: "\n            ")
 
-        // toc.ncx
+        // nav.xhtml があるので toc.ncx は必須ではないが、
+        // 互換性のため最低限の ncx も作っておく
         let tocNCX = makeTOCNCX(xhtmlFileNames: xhtmlFileNames)
         try tocNCX.write(
             to: oebps.appendingPathComponent("toc.ncx"),
@@ -179,10 +200,12 @@ struct EPUBBuilder {
             <dc:language>ja</dc:language>
             <meta property="dcterms:modified">\(iso8601Now)</meta>
 
+            <!-- 固定レイアウト指定 (EPUB3 FXL) -->
             <meta property="rendition:layout">pre-paginated</meta>
             <meta property="rendition:orientation">auto</meta>
             <meta property="rendition:spread">auto</meta>
 
+            <!-- iBooks 拡張 -->
             <meta property="ibooks:reader-optimized">true</meta>
           </metadata>
 
@@ -204,6 +227,7 @@ struct EPUBBuilder {
         )
         log("✓ content.opf 作成 (EPUB3 固定レイアウト, 右開き)")
 
+        // ---- ZIP で EPUB 化 ----
         try zipEpub(workDir: workDir, dest: outputURL)
         log("✓ EPUB パッケージング完了: \(outputURL.path)")
 
@@ -212,6 +236,7 @@ struct EPUBBuilder {
 
     // MARK: - XHTML (1ページ)
 
+    /// 1ページ分の XHTML を生成
     private func makePageXHTML(pageNumber: Int, imageFileName: String) -> String {
         let w = Int(pageSize.width)
         let h = Int(pageSize.height)
@@ -250,6 +275,8 @@ struct EPUBBuilder {
         """
     }
 
+    // MARK: - nav.xhtml (EPUB3 TOC)
+
     private func makeNavXHTML(xhtmlFileNames: [String]) -> String {
         let items = xhtmlFileNames.enumerated().map { (index, name) in
             """
@@ -275,6 +302,8 @@ struct EPUBBuilder {
         </html>
         """
     }
+
+    // MARK: - toc.ncx（互換用・簡易）
 
     private func makeTOCNCX(xhtmlFileNames: [String]) -> String {
         let navPoints = xhtmlFileNames.enumerated().map { (index, name) in
@@ -307,6 +336,8 @@ struct EPUBBuilder {
         """
     }
 
+    // MARK: - Utility
+
     private func mediaType(for file: URL) -> String {
         switch file.pathExtension.lowercased() {
         case "jpg", "jpeg": return "image/jpeg"
@@ -315,31 +346,52 @@ struct EPUBBuilder {
         }
     }
 
+    /// ZIP で EPUB を作成
+    ///
+    /// - /usr/bin/zip は iCloud / デスクトップ直下などで
+    ///   「Operation not permitted」を出すことがあるので、
+    ///   いったん **一時ファイルに .epub を作成 → moveItem で移動**
     private func zipEpub(workDir: URL, dest: URL) throws {
         let fm = FileManager.default
-        try? fm.removeItem(at: dest)
 
+        // まず一時ファイルに書き出し
+        let tempDest = FileManager.default.temporaryDirectory
+            .appendingPathComponent("epub_tmp_\(UUID().uuidString).epub")
+
+        // 念のため削除
+        try? fm.removeItem(at: tempDest)
+
+        // ---- mimetype 無圧縮 ----
         let p1 = Process()
         p1.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-        p1.arguments = ["-X0", dest.path, "mimetype"]
+        p1.arguments = ["-X0", tempDest.path, "mimetype"]
         p1.currentDirectoryURL = workDir
         try p1.run()
         p1.waitUntilExit()
 
+        // ---- META-INF と OEBPS を圧縮 ----
         let p2 = Process()
         p2.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-        p2.arguments = ["-r", dest.path, "META-INF", "OEBPS"]
+        p2.arguments = ["-r", tempDest.path, "META-INF", "OEBPS"]
         p2.currentDirectoryURL = workDir
         try p2.run()
         p2.waitUntilExit()
+
+        // すでに出力先があれば削除
+        try? fm.removeItem(at: dest)
+
+        // 一時ファイルを最終出力先へ移動
+        try fm.copyItem(at: tempDest, to: dest)
     }
 
+    /// ISO8601 形式の現在時刻
     private func currentISO8601() -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.string(from: Date())
     }
 
+    /// XML 用に最低限のエスケープ
     private func escapeXML(_ text: String) -> String {
         var s = text
         s = s.replacingOccurrences(of: "&", with: "&amp;")

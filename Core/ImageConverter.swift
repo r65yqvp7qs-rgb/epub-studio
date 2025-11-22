@@ -1,35 +1,35 @@
-// Core/ImageConverter.swift
+//
+//  ImageConverter.swift
+//  EPUB Studio
+//
 
 import Foundation
+import CoreGraphics
+import ImageIO
 import AppKit
-
-enum ImageConverterError: Error {
-    case cannotLoadImage(URL)
-    case cannotCreateJPEG(URL)
-}
 
 struct ImageConverter {
 
-    static func convertToJPEG(
-        src: URL,
-        dst: URL,
-        quality: CGFloat = 0.9
-    ) throws -> URL {
+    /// PNG / WebP / HEIF / BMP など → JPEG 変換
+    static func convertToJPEG(src: URL, dst: URL) throws {
 
-        guard let image = NSImage(contentsOf: src) else {
-            throw ImageConverterError.cannotLoadImage(src)
+        guard let srcImage = NSImage(contentsOf: src) else {
+            throw NSError(domain: "ImageLoad", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "画像を読み込めません: \(src.lastPathComponent)"])
         }
 
-        guard let tiffData = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiffData),
-              let jpegData = rep.representation(
-                using: .jpeg,
-                properties: [.compressionFactor: quality]
-              ) else {
-            throw ImageConverterError.cannotCreateJPEG(src)
+        guard let tiff = srcImage.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff) else {
+            throw NSError(domain: "Bitmap", code: -2,
+                          userInfo: [NSLocalizedDescriptionKey: "画像をビットマップ化できません"])
+        }
+
+        guard let jpegData = bitmap.representation(using: .jpeg,
+                                                   properties: [.compressionFactor: 0.92]) else {
+            throw NSError(domain: "JPEG", code: -3,
+                          userInfo: [NSLocalizedDescriptionKey: "JPEG生成に失敗"])
         }
 
         try jpegData.write(to: dst, options: .atomic)
-        return dst
     }
 }

@@ -1,47 +1,37 @@
 // Core/Converter.swift
-//
-// EPUB Studio - 画像フォルダ → EPUB3 固定レイアウト
-// Swift 6 concurrency 対応版
 
 import Foundation
 import AppKit
 import ImageIO
 
-// 対象とする画像拡張子
-private let validImageExtensions: Set<String> = [
-    "jpg", "jpeg", "png", "webp", "avif"
-]
+// 対応画像拡張子
+private let validImageExtensions: Set<String> =
+    ["jpg", "jpeg", "png", "webp", "avif"]
 
-// ファイル名ペア i-002_003.jpg など
+// 例: 002-003.jpg, 002_003.png
 private let spreadPairRegex =
     try! NSRegularExpression(pattern: #"(\d+)[-_](\d+)"#, options: [])
 
-// 001L.jpg / 001R.png など
+// 例: 001L.jpg, 001R.jpg
 private let spreadLRRegex =
-    try! NSRegularExpression(pattern: #"(\d+)\s*([LR])"#,
-                             options: [.caseInsensitive])
+    try! NSRegularExpression(pattern: #"(\d+)\s*([LR])"#, options: [.caseInsensitive])
 
-/// 論理ページ（PageSide が確定する前）
+/// 見開き or 単ページ（PageInfo 生成前の段階）
 private enum LogicalItem {
-    case spread(right: URL, left: URL) // 見開きの左右
-    case single(URL)                   // 単ページ
+    case spread(right: URL, left: URL)
+    case single(URL)
 }
 
-/// JPEG 変換後の1枚ぶん情報
-private struct ConvertedImage {
-    let originalURL: URL        // 元ファイル
-    let jpegURL: URL            // 一時 JPEG
-    let pixelSize: CGSize       // ピクセルサイズ
-    let fileName: String        // 元ファイル名
-    let spreadPair: (Int, Int)? // ファイル名から判定したペア番号
-    let isWide: Bool            // 横長（見開き候補）
-}
-
-/// 画像フォルダ → EPUB 生成まで全部やる
+/// Converter：画像 → 見開き判断 → PageInfo → EPUB
 struct Converter {
 
-    /// メイン処理
-    static func run(inputFolder: URL, state: AppState) async throws {
+    // ===============================================================
+    // MARK: - メイン処理
+    // ===============================================================
+    static func run(
+        inputFolder: URL,
+        state: AppState
+    ) async throws {
 
         let fm = FileManager.default
 
@@ -49,34 +39,30 @@ struct Converter {
             state.isProcessing = true
             state.resetProgress()
             state.appendLog("=== EPUB 生成開始 ===")
+            state.appendLog("入力フォルダ: \(inputFolder.path)")
         }
 
-        // 出力先のベース（タイトル）
-        let title  = inputFolder.lastPathComponent
+        // 本のタイトル
+        let title = inputFolder.lastPathComponent
         let author = "EPUB Studio"
 
-        // 一時 JPEG 保存ディレクトリ（元画像 → JPEG）
-        let tempSrcDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("epub_src_\(UUID().uuidString)")
-        try? fm.removeItem(at: tempSrcDir)
-        try fm.createDirectory(at: tempSrcDir, withIntermediateDirectories: true)
-
-        // 画像ファイル一覧
+        // ---------------------------
+        // 画像ファイル一覧を取得
+        // ---------------------------
         let files = try fm.contentsOfDirectory(
             at: inputFolder,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         )
-        .filter { url in
-            validImageExtensions.contains(url.pathExtension.lowercased())
-        }
+        .filter { validImageExtensions.contains($0.pathExtension.lowercased()) }
         .sorted { a, b in
-            a.lastPathComponent.localizedStandardCompare(b.lastPathComponent) == .orderedAscending
+            a.lastPathComponent.localizedStandardCompare(b.lastPathComponent)
+                == .orderedAscending
         }
 
         guard !files.isEmpty else {
             await MainActor.run {
-                state.appendLog("⚠ 画像ファイルが見つかりませんでした。")
+                state.appendLog("⚠ 画像ファイルが見つかりません")
                 state.isProcessing = false
             }
             return
@@ -86,27 +72,28 @@ struct Converter {
             state.appendLog("画像枚数: \(files.count)")
         }
 
-        // ================================
-        // ① JPEG 化 & サイズ・spread情報収集
-        // ================================
+        // ===============================================================
+        // MARK: ① JPEG 化 ＆ 情報収集（0〜0.25）
+        // ===============================================================
         var converted: [ConvertedImage] = []
 
-        // 単ページ候補サイズの頻度（基準サイズ決定用）
-        // key: "WxH", value: (count, size)
         var singleSizeCount: [String: (count: Int, size: CGSize)] = [:]
+
+        let tempImagesRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("epub_images_\(UUID().uuidString)")
+        try? fm.createDirectory(at: tempImagesRoot, withIntermediateDirectories: true)
 
         for (index, src) in files.enumerated() {
 
             let progress = Double(index) / Double(files.count) * 0.25
             await MainActor.run {
                 state.updateProgress(progress)
-                state.appendLog("画像 \(index + 1)/\(files.count): \(src.lastPathComponent)")
+                state.appendLog("画像 \(index+1)/\(files.count): \(src.lastPathComponent)")
             }
 
-            // JPEG へ変換
-            let tmpName = "orig_\(String(format: "%04d", index + 1)).jpg"
-            let tmpURL = tempSrcDir.appendingPathComponent(tmpName)
-
+            // JPEG 化
+            let tmpName = String(format: "orig_%04d.jpg", index + 1)
+            let tmpURL = tempImagesRoot.appendingPathComponent(tmpName)
             try ImageConverter.convertToJPEG(src: src, dst: tmpURL)
 
             // ピクセルサイズ
@@ -126,7 +113,6 @@ struct Converter {
             )
             converted.append(info)
 
-            // 単ページ候補サイズをカウント
             if pair == nil && !wide {
                 let key = "\(Int(size.width))x\(Int(size.height))"
                 let current = singleSizeCount[key] ?? (0, size)
@@ -134,102 +120,79 @@ struct Converter {
             }
         }
 
-        // 以降では不変の配列として扱う（Swift 6 の並行アクセスエラー回避）
-        let convertedImages = converted
-
-        // ================================
-        // ② 基準単ページサイズを決定
-        //    （フォルダ内で一番多いサイズ）
-        // ================================
+        // ===============================================================
+        // MARK: ② 基準単ページサイズ（最頻値）を決定
+        // ===============================================================
         let baseSize: CGSize
 
         if let best = singleSizeCount.values.max(by: { $0.count < $1.count }) {
             baseSize = best.size
             await MainActor.run {
-                state.appendLog("基準単ページサイズ（最頻）: \(Int(baseSize.width))x\(Int(baseSize.height))")
+                state.appendLog("基準サイズ（最頻）: \(Int(baseSize.width))x\(Int(baseSize.height))")
             }
-        } else if let first = convertedImages.first?.pixelSize {
+        } else if let first = converted.first?.pixelSize {
             baseSize = first
             await MainActor.run {
-                state.appendLog("単ページ候補がないため、先頭画像サイズを基準に: \(Int(baseSize.width))x\(Int(baseSize.height))")
+                state.appendLog("単ページ候補がないため先頭画像を基準に: \(baseSize)")
             }
         } else {
-            // ほぼ来ない想定
             baseSize = CGSize(width: 1440, height: 2048)
             await MainActor.run {
-                state.appendLog("⚠ 基準サイズ決定に失敗。デフォルト 1440x2048 を使用")
+                state.appendLog("⚠ 基準サイズ決定失敗 → 1440x2048 を使用")
             }
         }
 
-        // アップスケールが必要か？（基準サイズより小さい画像があるか）
-        var needsUpScale = false
-        for info in convertedImages {
-            if info.pixelSize.width < baseSize.width ||
-               info.pixelSize.height < baseSize.height {
-                needsUpScale = true
-                break
-            }
-        }
-
-        // ================================
-        // ③ ConvertedImage → LogicalItem
-        //    見開きは分割＋基準サイズにリサイズ
-        // ================================
+        // ===============================================================
+        // MARK: ③ 見開き判定 → 分割 → LogicalItem 化（0.25〜0.60）
+        // ===============================================================
         var logicalItems: [LogicalItem] = []
 
-        // 分割後 JPEG を置く一時ディレクトリ
-        let tempImagesDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("epub_images_\(UUID().uuidString)")
-        try? fm.removeItem(at: tempImagesDir)
-        try fm.createDirectory(at: tempImagesDir, withIntermediateDirectories: true)
+        let tempSpreadsDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("epub_spreads_\(UUID().uuidString)")
+        try? fm.createDirectory(at: tempSpreadsDir, withIntermediateDirectories: true)
 
-        let totalConverted = convertedImages.count
+        for (index, info) in converted.enumerated() {
 
-        for (index, info) in convertedImages.enumerated() {
-
-            let progress = 0.25 + Double(index) / Double(totalConverted) * 0.35
+            let progress = 0.25 + Double(index) / Double(converted.count) * 0.35
             await MainActor.run {
                 state.updateProgress(progress)
-                state.appendLog("配置判定 \(index + 1)/\(totalConverted): \(info.fileName)")
+                state.appendLog("配置判定 \(index+1)/\(converted.count): \(info.fileName)")
             }
 
             if let pair = info.spreadPair {
-                // ファイル名ペアでの見開き
                 await MainActor.run {
-                    state.appendLog("  ↳ 見開き（番号ペア）検出: \(pair.0)-\(pair.1)")
+                    state.appendLog("↳ 見開き（番号ペア）: \(pair.0)-\(pair.1)")
                 }
                 let baseName = "spread_\(pair.0)_\(pair.1)"
                 let (r, l) = try splitSpreadImage(
                     src: info.jpegURL,
                     baseName: baseName,
                     targetSize: baseSize,
-                    in: tempImagesDir
+                    in: tempSpreadsDir
                 )
                 logicalItems.append(.spread(right: r, left: l))
 
             } else if info.isWide {
-                // 横長なので見開き
                 await MainActor.run {
-                    state.appendLog("  ↳ 見開き（横長）と判定")
+                    state.appendLog("↳ 見開き（横長）")
                 }
-                let baseName = "spread_\(index + 1)"
+                let baseName = "spread_\(index+1)"
                 let (r, l) = try splitSpreadImage(
                     src: info.jpegURL,
                     baseName: baseName,
                     targetSize: baseSize,
-                    in: tempImagesDir
+                    in: tempSpreadsDir
                 )
                 logicalItems.append(.spread(right: r, left: l))
 
             } else {
-                // 単ページ
                 logicalItems.append(.single(info.jpegURL))
             }
         }
 
-        // ================================
-        // ④ 論理ページ → PageInfo 列へ
-        // ================================
+        // ===============================================================
+        // MARK: ④ LogicalItem → PageInfo（0.60〜0.70）
+        // ===============================================================
         let pages = makePageSequence(from: logicalItems) { message in
             Task { @MainActor in
                 state.appendLog(message)
@@ -237,25 +200,15 @@ struct Converter {
         }
 
         await MainActor.run {
-            state.appendLog("最終ページ数（PageInfo）: \(pages.count)")
+            state.appendLog("最終ページ数: \(pages.count)")
             state.updateProgress(0.7)
         }
 
-        // ================================
-        // ⑤ EPUB Builder 実行
-        // ================================
-
-        // アップスケール付きならファイル名を拡張
-        let baseDir = inputFolder.deletingLastPathComponent()
-        let epubNameBase: String = {
-            if needsUpScale {
-                return "\(title)_UpScale(\(Int(baseSize.width))x\(Int(baseSize.height)))"
-            } else {
-                return title
-            }
-        }()
-
-        let outputURL = baseDir.appendingPathComponent("\(epubNameBase).epub")
+        // ===============================================================
+        // MARK: ⑤ EPUB Builder 実行（0.70〜1.0）
+        // ===============================================================
+        // ★★ Sandbox 対策：EPUB は inputFolder の中に作る
+        let outputURL = inputFolder.appendingPathComponent("\(title).epub")
 
         await MainActor.run {
             state.appendLog("EPUB 出力先: \(outputURL.path)")
@@ -267,24 +220,21 @@ struct Converter {
             outputURL: outputURL,
             pages: pages,
             pageSize: baseSize,
-            log: { message in
-                Task { @MainActor in
-                    state.appendLog(message)
-                }
-            }
+            log: { msg in Task { @MainActor in state.appendLog(msg) } }
         )
 
         try builder.build()
 
         await MainActor.run {
             state.updateProgress(1.0)
-            state.appendLog("✅ EPUB 生成完了: \(outputURL.path)")
+            state.appendLog("✅ EPUB 生成完了: \(outputURL.lastPathComponent)")
             state.isProcessing = false
         }
     }
 
-    // MARK: - 画像サイズ・比率
-
+    // ===============================================================
+    // MARK: - 画像メタ情報
+    // ===============================================================
     private static func imagePixelSize(for url: URL) throws -> CGSize {
         guard
             let src = CGImageSourceCreateWithURL(url as CFURL, nil),
@@ -297,18 +247,18 @@ struct Converter {
         return CGSize(width: w, height: h)
     }
 
-    private static func isWideSize(_ size: CGSize) -> Bool {
-        guard size.height > 0 else { return false }
-        let ratio = size.width / size.height
-        return ratio >= 1.2
+    private static func isWideSize(_ s: CGSize) -> Bool {
+        guard s.height > 0 else { return false }
+        return (s.width / s.height) >= 1.2
     }
 
-    // MARK: - spread 判定
-
+    // ===============================================================
+    // MARK: - spread 判定（ファイル名から）
+    // ===============================================================
     private static func detectSpreadPair(from fileName: String) -> (Int, Int)? {
-        let fullRange = NSRange(location: 0, length: fileName.utf16.count)
+        let range = NSRange(location: 0, length: fileName.utf16.count)
 
-        if let m = spreadPairRegex.firstMatch(in: fileName, options: [], range: fullRange),
+        if let m = spreadPairRegex.firstMatch(in: fileName, options: [], range: range),
            m.numberOfRanges >= 3,
            let r1 = Range(m.range(at: 1), in: fileName),
            let r2 = Range(m.range(at: 2), in: fileName),
@@ -318,19 +268,19 @@ struct Converter {
             return (min(n1, n2), max(n1, n2))
         }
 
-        if let m = spreadLRRegex.firstMatch(in: fileName, options: [], range: fullRange),
+        if let m = spreadLRRegex.firstMatch(in: fileName, options: [], range: range),
            m.numberOfRanges >= 3,
            let r = Range(m.range(at: 1), in: fileName),
            let n = Int(fileName[r]) {
-            // 001L / 001R → ざっくり (n, n+1) として扱う
-            return (n, n + 1)
+            return (n, n+1)
         }
 
         return nil
     }
 
-    // MARK: - 見開き分割（高画質）
-
+    // ===============================================================
+    // MARK: - 見開き画像分割（高品質）
+    // ===============================================================
     private static func splitSpreadImage(
         src: URL,
         baseName: String,
@@ -338,39 +288,30 @@ struct Converter {
         in dir: URL
     ) throws -> (URL, URL) {
 
-        guard let nsImage = NSImage(contentsOf: src),
-              var cgImage = nsImage.toCGImage() else {
+        guard let nsImg = NSImage(contentsOf: src),
+              var cgImage = nsImg.toCGImage()
+        else {
             throw ImageConverterError.cannotLoadImage(src)
         }
 
-        let srcWidth  = cgImage.width
-        let srcHeight = cgImage.height
+        let w = cgImage.width
+        let h = cgImage.height
+        guard w > 1 else { throw ImageConverterError.cannotCreateJPEG(src) }
 
-        guard srcWidth > 1 else {
-            throw ImageConverterError.cannotCreateJPEG(src)
-        }
-
-        // 幅が奇数なら 1px 落として偶数に（中央線バグ対策）
-        let evenWidth = srcWidth - (srcWidth % 2)
-        if evenWidth != srcWidth {
-            let cropRect = CGRect(x: 0, y: 0, width: evenWidth, height: srcHeight)
-            if let cropped = cgImage.cropping(to: cropRect) {
+        // 幅が奇数 → 偶数へ補正
+        let evenW = w - (w % 2)
+        if evenW != w {
+            let rect = CGRect(x: 0, y: 0, width: evenW, height: h)
+            if let cropped = cgImage.cropping(to: rect) {
                 cgImage = cropped
             }
         }
 
-        let halfWidth  = cgImage.width / 2
-        let fullHeight = cgImage.height
+        let half = cgImage.width / 2
+        let fullH = cgImage.height
 
-        let leftRect = CGRect(x: 0,
-                              y: 0,
-                              width: halfWidth,
-                              height: fullHeight)
-
-        let rightRect = CGRect(x: halfWidth,
-                               y: 0,
-                               width: halfWidth,
-                               height: fullHeight)
+        let leftRect  = CGRect(x: 0,      y: 0, width: half, height: fullH)
+        let rightRect = CGRect(x: half,   y: 0, width: half, height: fullH)
 
         guard
             let leftCG  = cgImage.cropping(to: leftRect),
@@ -383,14 +324,11 @@ struct Converter {
         let targetH = Int(targetSize.height)
 
         func resizeAndSave(_ cg: CGImage, suffix: String) throws -> URL {
-            guard let resized = resizeCGImage(cgImage: cg,
-                                              width: targetW,
-                                              height: targetH) else {
-                throw ImageConverterError.cannotCreateJPEG(src)
-            }
+            guard let resized = resizeCGImage(cgImage: cg, width: targetW, height: targetH)
+            else { throw ImageConverterError.cannotCreateJPEG(src) }
 
             let rep = NSBitmapImageRep(cgImage: resized)
-            guard let jpegData = rep.representation(
+            guard let data = rep.representation(
                 using: .jpeg,
                 properties: [.compressionFactor: 0.9]
             ) else {
@@ -398,54 +336,51 @@ struct Converter {
             }
 
             let name = "\(baseName)_\(suffix).jpg"
-            let dst  = dir.appendingPathComponent(name)
-            try jpegData.write(to: dst, options: .atomic)
+            let dst = dir.appendingPathComponent(name)
+            try data.write(to: dst, options: .atomic)
             return dst
         }
 
-        // 右ページ → page-spread-right
-        let rightURL = try resizeAndSave(rightCG, suffix: "R")
-        // 左ページ → page-spread-left
-        let leftURL  = try resizeAndSave(leftCG,  suffix: "L")
-
-        return (rightURL, leftURL)
+        let rURL = try resizeAndSave(rightCG, suffix: "R")
+        let lURL = try resizeAndSave(leftCG,  suffix: "L")
+        return (rURL, lURL)
     }
 
+    // ===============================================================
+    // MARK: - CGImageリサイズ
+    // ===============================================================
     private static func resizeCGImage(
         cgImage: CGImage,
         width: Int,
         height: Int
     ) -> CGImage? {
-        guard width > 0, height > 0 else { return nil }
 
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard width > 0 && height > 0 else { return nil }
+
+        let cs = CGColorSpaceCreateDeviceRGB()
+        let info = CGImageAlphaInfo.premultipliedLast.rawValue
 
         guard let ctx = CGContext(
             data: nil,
-            width: width,
-            height: height,
+            width: width, height: height,
             bitsPerComponent: 8,
             bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: bitmapInfo
+            space: cs,
+            bitmapInfo: info
         ) else {
             return nil
         }
 
         ctx.interpolationQuality = .high
-        ctx.draw(
-            cgImage,
-            in: CGRect(x: 0, y: 0,
-                       width: CGFloat(width),
-                       height: CGFloat(height))
-        )
-
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0,
+                                    width: CGFloat(width),
+                                    height: CGFloat(height)))
         return ctx.makeImage()
     }
 
-    // MARK: - PageInfo 列生成
-
+    // ===============================================================
+    // MARK: - PageInfo 列作成
+    // ===============================================================
     private static func makePageSequence(
         from logical: [LogicalItem],
         log: (String) -> Void
@@ -456,7 +391,9 @@ struct Converter {
         var pendingSingle: URL?
 
         for item in logical {
+
             switch item {
+
             case .spread(let r, let l):
                 if let wait = pendingSingle {
                     pages.append(PageInfo(imageFile: wait, side: .right))
@@ -468,13 +405,13 @@ struct Converter {
 
             case .single(let img):
                 if !firstSingleHandled {
-                    log("表紙として単ページを配置: \(img.lastPathComponent)")
+                    log("表紙: \(img.lastPathComponent)")
                     pages.append(PageInfo(imageFile: img, side: .right))
                     firstSingleHandled = true
                 } else {
                     if let wait = pendingSingle {
                         pages.append(PageInfo(imageFile: wait, side: .right))
-                        pages.append(PageInfo(imageFile: img, side: .left))
+                        pages.append(PageInfo(imageFile: img,  side: .left))
                         pendingSingle = nil
                     } else {
                         pendingSingle = img
@@ -488,13 +425,5 @@ struct Converter {
         }
 
         return pages
-    }
-}
-
-// NSImage → CGImage 変換（このプロジェクト内では 1 箇所だけ定義する）
-extension NSImage {
-    func toCGImage() -> CGImage? {
-        var rect = NSRect(origin: .zero, size: self.size)
-        return self.cgImage(forProposedRect: &rect, context: nil, hints: nil)
     }
 }
