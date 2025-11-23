@@ -204,28 +204,33 @@ struct ProgressRow: View {
 // MARK: - ログビュー（自動スクロール付き）
 
 struct LogView: View {
-
     let text: String
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(text.isEmpty ? "（ログはまだありません）" : text)
+                VStack(alignment: .leading, spacing: 4) {
+
+                    Text(text.isEmpty ? "（ログがまだありません）" : text)
                         .font(.system(size: 11, design: .monospaced))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
+                        .padding(.horizontal, 6)
+                        .padding(.top, 4)
 
-                    // スクロール位置用のダミー
+                    // 余白を大きめに（これが重要）
                     Color.clear
-                        .frame(height: 1)
+                        .frame(height: 30)
                         .id("LOG_BOTTOM")
                 }
             }
-            .onChange(of: text) { oldValue, newValue in
-                withAnimation {
-                    proxy.scrollTo("LOG_BOTTOM", anchor: .bottom)
+            .onChange(of: text) { _, _ in
+                // レイアウト確定後にスクロール
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo("LOG_BOTTOM", anchor: .bottom)
+                    }
                 }
-            }        }
+            }
+        }
     }
 }
