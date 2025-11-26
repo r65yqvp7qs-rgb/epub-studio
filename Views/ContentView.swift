@@ -1,236 +1,208 @@
-// Views/ContentView.swift
+//
+//  ContentView.swift
+//  EPUB Studio
+//
 
 import SwiftUI
-import AppKit
+import AppKit   // startAccessingSecurityScopedResource 用
 
-@MainActor
+/// アプリのメイン画面（EPUB Studio UI）
 struct ContentView: View {
 
+    /// アプリ全体の状態管理（進捗・ログ・フォルダ選択など）
     @StateObject private var state = AppState()
-    @State private var isLogVisible: Bool = true
+
+    /// フォルダ選択ダイアログの表示フラグ
+    @State private var showingFolderPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
 
+            // ---------------------------------------------------------
             // タイトル
+            // ---------------------------------------------------------
             Text("EPUB Studio")
-                .font(.title2)
+                .font(.title)
                 .bold()
-                .padding(.top, 8)
+                .padding(.top, 12)
 
-            // ===== 入力フォルダ =====
-            HStack(spacing: 12) {
+            // ---------------------------------------------------------
+            // 入力フォルダ表示 + 「フォルダ選択」ボタン
+            // ---------------------------------------------------------
+            HStack {
                 Text("入力フォルダ")
-                    .font(.headline)
+                    .bold()
 
-                if let url = state.inputFolderURL {
-                    Text(url.path)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                } else {
-                    Text("未選択")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                }
+                Text(state.inputFolderDisplayPath)
+                    .font(.footnote)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
 
                 Spacer()
 
                 Button("フォルダ選択") {
-                    pickFolder()
+                    showingFolderPicker = true
                 }
-                .keyboardShortcut("o", modifiers: [.command])
                 .disabled(state.isProcessing)
             }
 
-            Divider()
-
-            // ===== 工程別 進行状況（プランB：3工程） =====
-            VStack(alignment: .leading, spacing: 10) {
-                Text("進行状況")
-                    .font(.headline)
+            // ---------------------------------------------------------
+            // 進捗バー（冊ごとの 3 本 + 全体進捗 1 本）
+            // ---------------------------------------------------------
+            VStack(alignment: .leading, spacing: 8) {
 
                 ProgressRow(
                     title: "画像準備（JPEG変換・情報収集）",
-                    progress: state.phase1Progress
+                    progress: state.step1Progress
                 )
 
                 ProgressRow(
                     title: "ページ構築（見開き判定・レイアウト）",
-                    progress: state.phase2Progress
+                    progress: state.step2Progress
                 )
 
                 ProgressRow(
                     title: "EPUB構築（パッケージング）",
-                    progress: state.phase3Progress
+                    progress: state.step3Progress
+                )
+
+                // ---- 全体進捗バー（4 本目）----
+                let totalLabel: String = {
+                    if state.currentVolumeTotal > 0 {
+                        return "全体進捗（\(state.currentVolumeTotal) 冊）"
+                    } else {
+                        return "全体進捗"
+                    }
+                }()
+
+                ProgressRow(
+                    title: totalLabel,
+                    progress: state.totalProgress
                 )
             }
 
-            Divider()
-
-            // ===== 実行ボタン ＋ ログ表示切り替え =====
-            HStack(spacing: 12) {
-                Button(action: startConversion) {
-                    Text(state.isProcessing ? "処理中…" : "EPUB 生成開始")
-                        .bold()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(state.isProcessing || state.inputFolderURL == nil)
-
-                Button {
-                    isLogVisible.toggle()
-                } label: {
-                    Label(isLogVisible ? "ログを隠す" : "ログを表示", systemImage: "text.bubble")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.borderless)
-            }
-
-            // ===== ログ =====
-            if isLogVisible {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("ログ")
-                        .font(.headline)
-
-                    LogView(text: state.log)
-                        .frame(minHeight: 160)
-                        .background(Color(NSColor.textBackgroundColor))
-                        .cornerRadius(6)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.4), lineWidth: 1)
-                        )
+            // ---------------------------------------------------------
+            // 一括生成：現在の巻数表示（バーの近く・右側）
+            // ---------------------------------------------------------
+            HStack {
+                Spacer()
+                if state.currentVolumeTotal > 1 {
+                    Text("進行中：\(state.currentVolumeIndex)/\(state.currentVolumeTotal) 冊目  \(state.currentVolumeTitle)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                } else if state.currentVolumeTotal == 1 {
+                    Text("進行中：1 冊  \(state.currentVolumeTitle)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
             }
 
-            Spacer(minLength: 0)
-        }
-        .padding(20)
-        .frame(minWidth: 860, minHeight: 620)
-    }
-
-    // MARK: - フォルダ選択
-
-    private func pickFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-
-        if panel.runModal() == .OK {
-            state.inputFolderURL = panel.url
-        }
-    }
-
-    // MARK: - 変換開始
-
-    private func startConversion() {
-        guard let url = state.inputFolderURL else { return }
-
-        Task {
-            do {
-                state.isProcessing = true
-                state.resetProgress()
-                state.appendLog("=== 変換開始 ===")
-
-                try await Converter.run(inputFolder: url, state: state)
-            } catch {
-                state.appendLog("⚠ エラー: \(error.localizedDescription)")
-                state.isProcessing = false
-            }
-        }
-    }
-}
-
-// MARK: - 進捗行（1工程ぶん）
-
-struct ProgressRow: View {
-
-    let title: String
-    let progress: Double   // 0.0 ... 1.0
-
-    private var statusText: String {
-        if progress <= 0 {
-            return "待機中"
-        } else if progress < 1 {
-            return "処理中"
-        } else {
-            return "完了"
-        }
-    }
-
-    private var statusSymbol: String {
-        if progress <= 0 {
-            return "circle"
-        } else if progress < 1 {
-            return "arrow.triangle.2.circlepath.circle"
-        } else {
-            return "checkmark.circle.fill"
-        }
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-
-            Image(systemName: statusSymbol)
-                .foregroundColor(progress >= 1 ? .green : .accentColor)
-                .imageScale(.large)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                ProgressView(value: progress)
-                    .progressViewStyle(.linear)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(statusText)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-
-                Text(String(format: "%.0f%%", progress * 100))
-                    .font(.system(size: 11, weight: .medium))
-                    .monospacedDigit()
-            }
-        }
-    }
-}
-
-// MARK: - ログビュー（自動スクロール付き）
-
-struct LogView: View {
-    let text: String
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-
-                    Text(text.isEmpty ? "（ログがまだありません）" : text)
-                        .font(.system(size: 11, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 6)
-                        .padding(.top, 4)
-
-                    // 余白を大きめに（これが重要）
-                    Color.clear
-                        .frame(height: 30)
-                        .id("LOG_BOTTOM")
+            // ---------------------------------------------------------
+            // EPUB 生成開始ボタン
+            // ---------------------------------------------------------
+            HStack {
+                Spacer()
+                Button(state.isProcessing ? "処理中…" : "EPUB 生成開始") {
+                    startConvert()
                 }
+                .keyboardShortcut(.defaultAction)
+                .disabled(state.inputFolder == nil || state.isProcessing)
+                Spacer()
             }
-            .onChange(of: text) { _, _ in
-                // レイアウト確定後にスクロール
-                DispatchQueue.main.async {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo("LOG_BOTTOM", anchor: .bottom)
+            .padding(.top, 4)
+
+            // ---------------------------------------------------------
+            // ログ見出し + 表示/非表示切り替えボタン
+            // ---------------------------------------------------------
+            HStack {
+                Text("ログ")
+                    .bold()
+                Spacer()
+                Button(state.isLogVisible ? "ログを隠す" : "ログを表示") {
+                    state.isLogVisible.toggle()
+                }
+                .buttonStyle(.plain)
+            }
+
+            // ---------------------------------------------------------
+            // ログビュー（LogView.swift を使用）
+            // ---------------------------------------------------------
+            if state.isLogVisible {
+                LogView(text: state.logText)
+                    .frame(minHeight: 200)
+            }
+
+            Spacer(minLength: 8)
+        }
+        .padding(16)
+        .frame(minWidth: 720, minHeight: 520)
+        .fileImporter(
+            isPresented: $showingFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                if let folder = urls.first {
+                    Task { @MainActor in
+                        state.inputFolder = folder
+                        state.currentVolumeIndex = 0
+                        state.currentVolumeTotal = 0
+                        state.currentVolumeTitle = ""
+                        state.resetAllProgress()
+                        state.logText = ""
                     }
                 }
+
+            case .failure(let error):
+                print("フォルダ選択エラー: \(error)")
             }
+        }
+    }
+
+    // MARK: - EPUB 生成開始処理
+
+    private func startConvert() {
+        guard let folder = state.inputFolder else { return }
+
+        Task {
+            // ★ セキュリティスコープ付き URL へのアクセス開始
+            let granted = folder.startAccessingSecurityScopedResource()
+            defer {
+                // ★ 必ず対応する stop を呼ぶ
+                if granted {
+                    folder.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            do {
+                try await Converter.run(inputFolder: folder, state: state)
+            } catch {
+                await MainActor.run {
+                    state.appendLog("❌ エラー発生: \(error.localizedDescription)")
+                    state.isProcessing = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - サブビュー（進捗バー 1 本）
+
+private struct ProgressRow: View {
+    let title: String
+    let progress: Double  // 0〜1
+
+    var body: some View {
+        HStack(alignment: .center) {
+            Text(title)
+                .font(.subheadline)
+            Spacer()
+            ProgressView(value: progress)
+                .frame(maxWidth: 350)
+            Text(String(format: "%3.0f%%", progress * 100))
+                .frame(width: 40, alignment: .trailing)
+                .font(.footnote)
         }
     }
 }

@@ -31,9 +31,11 @@ enum LogicalItem {
 /// 画像フォルダ → EPUB 生成まで全部やる
 struct Converter {
 
+    // MARK: - エントリポイント
+
     /// メイン入口
     ///
-    /// - フォルダ直下に画像がある場合 … 1冊だけ生成（今までと同じ）
+    /// - フォルダ直下に画像がある場合 … 1 冊だけ生成（従来どおり）
     /// - 画像が無く、サブフォルダ内に画像がある場合 … そのサブフォルダごとに一括生成
     ///   EPUB の出力先は「選んだフォルダ直下」
     static func run(
@@ -46,11 +48,18 @@ struct Converter {
         // まず、選んだフォルダ直下に画像があるかどうかを調べる
         let directImages = try collectImages(in: inputFolder, fm: fm)
 
+        // =============================================================
+        // 単一フォルダモード（1 冊だけ）
+        // =============================================================
         if !directImages.isEmpty {
-            // ========= 単一フォルダモード =========
+
             await MainActor.run {
                 state.isProcessing = true
-                state.resetProgress()
+                state.inputFolder = inputFolder
+                state.currentVolumeIndex = 1
+                state.currentVolumeTotal = 1
+                state.currentVolumeTitle = inputFolder.lastPathComponent
+                state.resetAllProgress()
                 state.appendLog("=== EPUB 生成開始（単一フォルダ）===")
                 state.appendLog("入力フォルダ: \(inputFolder.path)")
             }
@@ -59,16 +68,14 @@ struct Converter {
                 try await runOneVolume(
                     folder: inputFolder,
                     images: directImages,
-                    outputRoot: inputFolder,      // 画像フォルダ内に出力
-                    volumeIndex: nil,
-                    totalVolumes: nil,
-                    state: state,
-                    overallBase: 0.0,
-                    overallScale: 1.0
+                    outputRoot: inputFolder,
+                    volumeIndex: 1,
+                    totalVolumes: 1,
+                    state: state
                 )
 
                 await MainActor.run {
-                    state.updateProgress(1.0)
+                    state.setTotalProgress(1.0)
                     state.appendLog("✅ EPUB 生成完了")
                     state.isProcessing = false
                 }
@@ -83,7 +90,10 @@ struct Converter {
             return
         }
 
-        // ========= 一括生成モード（親フォルダ） =========
+        // =============================================================
+        // 一括生成モード（親フォルダ配下の複数巻）
+        // =============================================================
+
         // サブフォルダのうち、画像を含むフォルダを探す
         let children = try fm.contentsOfDirectory(
             at: inputFolder,
@@ -103,9 +113,8 @@ struct Converter {
             }
         }
 
-        // Swift 6 concurrency 対策：
-        // 以降で async をまたいで使う配列は「let」のスナップショットにする
-        let volumes: [(folder: URL, images: [URL])] = volumesTemp
+        // Swift concurrency 対策：async をまたぐので let にスナップショット
+        let volumes = volumesTemp
 
         guard !volumes.isEmpty else {
             await MainActor.run {
@@ -115,39 +124,54 @@ struct Converter {
             return
         }
 
+        let totalVolumes = volumes.count
+
         await MainActor.run {
             state.isProcessing = true
-            state.resetProgress()
-            state.appendLog("=== EPUB 一括生成開始（\(volumes.count) フォルダ）===")
+            state.inputFolder = inputFolder
+            state.currentVolumeIndex = 0
+            state.currentVolumeTotal = totalVolumes
+            state.currentVolumeTitle = ""
+            state.resetAllProgress()
+            state.appendLog("=== EPUB 一括生成開始（\(totalVolumes) フォルダ）===")
             state.appendLog("親フォルダ: \(inputFolder.path)")
         }
 
-        let totalVolumes = volumes.count
-
+        // 巻ごとに処理
         for (index, entry) in volumes.enumerated() {
-            let base  = Double(index) / Double(totalVolumes)
-            let scale = 1.0 / Double(totalVolumes)
+            let volumeIndex = index + 1
+
+            await MainActor.run {
+                state.currentVolumeIndex = volumeIndex
+                state.currentVolumeTitle = entry.folder.lastPathComponent
+                // 1 冊ごとの 3 本のバーは毎回リセット
+                state.resetPerVolumeProgress()
+                // 全体進捗バー：巻開始時（0, 0.5, ...）へ
+                state.setTotalProgress(Double(index) / Double(totalVolumes))
+            }
 
             try await runOneVolume(
                 folder: entry.folder,
                 images: entry.images,
-                outputRoot: inputFolder,           // ★ 親フォルダ直下に出力
-                volumeIndex: index + 1,
+                outputRoot: inputFolder,  // 親フォルダ直下に出力
+                volumeIndex: volumeIndex,
                 totalVolumes: totalVolumes,
-                state: state,
-                overallBase: base,
-                overallScale: scale
+                state: state
             )
+
+            await MainActor.run {
+                // 巻完了時に全体進捗を更新（0.5, 1.0, ...）
+                state.setTotalProgress(Double(volumeIndex) / Double(totalVolumes))
+            }
         }
 
         await MainActor.run {
-            state.updateProgress(1.0)
-            state.appendLog("✅ すべての EPUB 生成完了（\(volumes.count) 冊）")
+            state.appendLog("✅ すべての EPUB 生成完了（\(totalVolumes) 冊）")
             state.isProcessing = false
         }
     }
 
-    // MARK: - フォルダ内画像の取得（1階層のみ）
+    // MARK: - フォルダ内画像の取得（1 階層のみ）
 
     private static func collectImages(
         in folder: URL,
@@ -168,17 +192,15 @@ struct Converter {
         }
     }
 
-    // MARK: - 1冊分の実処理
+    // MARK: - 1 冊分の実処理
 
     private static func runOneVolume(
         folder: URL,
         images: [URL],
         outputRoot: URL,
-        volumeIndex: Int?,
-        totalVolumes: Int?,
-        state: AppState,
-        overallBase: Double,
-        overallScale: Double
+        volumeIndex: Int,
+        totalVolumes: Int,
+        state: AppState
     ) async throws {
 
         let fm = FileManager.default
@@ -191,31 +213,19 @@ struct Converter {
             return
         }
 
-        // ローカル → 全体進捗へのマッピング
-        func updateProgress(_ local: Double) async {
-            let clamped = max(0.0, min(1.0, local))
-            let global  = overallBase + clamped * overallScale
-            await MainActor.run {
-                state.updateProgress(global)
-            }
-        }
-
         let title  = folder.lastPathComponent
         let author = "EPUB Studio"
 
+        let fileCount = files.count
+
         await MainActor.run {
-            if let idx = volumeIndex, let total = totalVolumes {
-                state.appendLog("")
-                state.appendLog("=== [\(idx)/\(total)] \(title) ===")
-            } else {
-                state.appendLog("")
-                state.appendLog("=== \(title) ===")
-            }
-            state.appendLog("画像枚数: \(files.count)")
+            state.appendLog("")
+            state.appendLog("=== [\(volumeIndex)/\(totalVolumes)] \(title) ===")
+            state.appendLog("画像枚数: \(fileCount)")
         }
 
         // ================================
-        // ① JPEG 化 & サイズ・spread情報収集（0.0〜0.25）
+        // ① JPEG 化 & サイズ・spread情報収集
         // ================================
         var convertedTemp: [ConvertedImage] = []
 
@@ -228,14 +238,12 @@ struct Converter {
             .appendingPathComponent("epub_images_\(UUID().uuidString)")
         try? fm.createDirectory(at: tempImagesRoot, withIntermediateDirectories: true)
 
-        let fileCount = files.count
-
         for (index, src) in files.enumerated() {
 
-            let localProgress = Double(index) / Double(fileCount) * 0.25
-            await updateProgress(localProgress)
+            let progress = Double(index + 1) / Double(fileCount)
 
             await MainActor.run {
+                state.setStep1Progress(progress)
                 state.appendLog("画像 \(index+1)/\(fileCount): \(src.lastPathComponent)")
             }
 
@@ -270,13 +278,12 @@ struct Converter {
             }
         }
 
-        // Swift 6 対策：以降で async を挟んで使うので let にスナップショット
-        let converted: [ConvertedImage] = convertedTemp
+        // Swift concurrency 対策：async を挟むので let にコピー
+        let converted = convertedTemp
         let convertedCount = converted.count
 
         // ================================
         // ② 基準単ページサイズを決定
-        //    （フォルダ内で一番多いサイズ）
         // ================================
         let baseSize: CGSize
 
@@ -315,7 +322,7 @@ struct Converter {
 
         // ================================
         // ③ ConvertedImage → LogicalItem
-        //    見開きは分割＋基準サイズにリサイズ（0.25〜0.60）
+        //    見開きは分割＋基準サイズにリサイズ
         // ================================
         var logicalItems: [LogicalItem] = []
 
@@ -326,10 +333,10 @@ struct Converter {
 
         for (index, info) in converted.enumerated() {
 
-            let localProgress = 0.25 + Double(index) / Double(convertedCount) * 0.35
-            await updateProgress(localProgress)
+            let progress = Double(index + 1) / Double(convertedCount) * 0.8
 
             await MainActor.run {
+                state.setStep2Progress(progress)
                 state.appendLog("配置判定 \(index+1)/\(convertedCount): \(info.fileName)")
             }
 
@@ -368,7 +375,7 @@ struct Converter {
         }
 
         // ================================
-        // ④ 論理ページ → PageInfo 列へ（0.60〜0.70）
+        // ④ 論理ページ → PageInfo 列へ
         // ================================
         let pages = makePageSequence(from: logicalItems) { message in
             Task { @MainActor in
@@ -376,17 +383,18 @@ struct Converter {
             }
         }
 
-        await updateProgress(0.70)
         await MainActor.run {
+            state.setStep2Progress(1.0)
             state.appendLog("最終ページ数（PageInfo）: \(pages.count)")
         }
 
         // ================================
-        // ⑤ EPUB Builder 実行（0.70〜1.0）
+        // ⑤ EPUB Builder 実行
         // ================================
         let outputURL = outputRoot.appendingPathComponent("\(title).epub")
 
         await MainActor.run {
+            state.setStep3Progress(0.0)
             state.appendLog("EPUB 出力先: \(outputURL.path)")
         }
 
@@ -405,8 +413,8 @@ struct Converter {
 
         try builder.build()
 
-        await updateProgress(1.0)
         await MainActor.run {
+            state.setStep3Progress(1.0)
             state.appendLog("✅ EPUB Builder 完了: \(outputURL.lastPathComponent)")
         }
     }
