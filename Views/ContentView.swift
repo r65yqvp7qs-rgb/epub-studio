@@ -1,34 +1,28 @@
-//
-//  ContentView.swift
+
+//  Views/ContentView.swift
 //  EPUB Studio
 //
 
 import SwiftUI
-import AppKit   // startAccessingSecurityScopedResource 用
+import AppKit   // セキュリティスコープ用
 
-/// アプリのメイン画面（EPUB Studio UI）
 struct ContentView: View {
 
-    /// アプリ全体の状態管理（進捗・ログ・フォルダ選択など）
     @StateObject private var state = AppState()
 
-    /// フォルダ選択ダイアログの表示フラグ
     @State private var showingFolderPicker = false
+    @State private var showingAuthorDialog = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
 
-            // ---------------------------------------------------------
-            // タイトル
-            // ---------------------------------------------------------
+            // MARK: - タイトル
             Text("EPUB Studio")
                 .font(.title)
                 .bold()
                 .padding(.top, 12)
 
-            // ---------------------------------------------------------
-            // 入力フォルダ表示 + 「フォルダ選択」ボタン
-            // ---------------------------------------------------------
+            // MARK: - 入力フォルダ
             HStack {
                 Text("入力フォルダ")
                     .bold()
@@ -46,9 +40,7 @@ struct ContentView: View {
                 .disabled(state.isProcessing)
             }
 
-            // ---------------------------------------------------------
-            // 進捗バー（冊ごとの 3 本 + 全体進捗 1 本）
-            // ---------------------------------------------------------
+            // MARK: - 進捗バー（3本＋全体）
             VStack(alignment: .leading, spacing: 8) {
 
                 ProgressRow(
@@ -66,7 +58,6 @@ struct ContentView: View {
                     progress: state.step3Progress
                 )
 
-                // ---- 全体進捗バー（4 本目）----
                 let totalLabel: String = {
                     if state.currentVolumeTotal > 0 {
                         return "全体進捗（\(state.currentVolumeTotal) 冊）"
@@ -81,9 +72,7 @@ struct ContentView: View {
                 )
             }
 
-            // ---------------------------------------------------------
-            // 一括生成：現在の巻数表示（バーの近く・右側）
-            // ---------------------------------------------------------
+            // MARK: - 今処理中の巻
             HStack {
                 Spacer()
                 if state.currentVolumeTotal > 1 {
@@ -97,13 +86,12 @@ struct ContentView: View {
                 }
             }
 
-            // ---------------------------------------------------------
-            // EPUB 生成開始ボタン
-            // ---------------------------------------------------------
+            // MARK: - EPUB 生成開始ボタン
             HStack {
                 Spacer()
                 Button(state.isProcessing ? "処理中…" : "EPUB 生成開始") {
-                    startConvert()
+                    // まず作者・出版社入力ダイアログを出す
+                    showingAuthorDialog = true
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(state.inputFolder == nil || state.isProcessing)
@@ -111,9 +99,7 @@ struct ContentView: View {
             }
             .padding(.top, 4)
 
-            // ---------------------------------------------------------
-            // ログ見出し + 表示/非表示切り替えボタン
-            // ---------------------------------------------------------
+            // MARK: - ログ見出し
             HStack {
                 Text("ログ")
                     .bold()
@@ -124,9 +110,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
 
-            // ---------------------------------------------------------
-            // ログビュー（LogView.swift を使用）
-            // ---------------------------------------------------------
+            // MARK: - ログビュー
             if state.isLogVisible {
                 LogView(text: state.logText)
                     .frame(minHeight: 200)
@@ -158,6 +142,20 @@ struct ContentView: View {
                 print("フォルダ選択エラー: \(error)")
             }
         }
+        // 作者・出版社入力ダイアログ
+        .sheet(isPresented: $showingAuthorDialog) {
+            AuthorInfoDialog(
+                author: $state.author,
+                publisher: $state.publisher,
+                onCancel: {
+                    showingAuthorDialog = false
+                },
+                onDone: {
+                    showingAuthorDialog = false
+                    startConvert()
+                }
+            )
+        }
     }
 
     // MARK: - EPUB 生成開始処理
@@ -166,13 +164,10 @@ struct ContentView: View {
         guard let folder = state.inputFolder else { return }
 
         Task {
-            // ★ セキュリティスコープ付き URL へのアクセス開始
+            // セキュリティスコープ付き URL へのアクセス開始
             let granted = folder.startAccessingSecurityScopedResource()
             defer {
-                // ★ 必ず対応する stop を呼ぶ
-                if granted {
-                    folder.stopAccessingSecurityScopedResource()
-                }
+                if granted { folder.stopAccessingSecurityScopedResource() }
             }
 
             do {
@@ -187,7 +182,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - サブビュー（進捗バー 1 本）
+// MARK: - 進捗バー 1本
 
 private struct ProgressRow: View {
     let title: String

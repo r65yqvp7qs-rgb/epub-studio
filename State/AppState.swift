@@ -1,9 +1,7 @@
-//
-//  AppState.swift
-//  EPUB Studio
-//
 
-import Foundation
+//  State/AppState.swift
+//  EPUB Studio
+
 import SwiftUI
 
 /// アプリ全体の状態
@@ -20,6 +18,14 @@ final class AppState: ObservableObject {
         guard let url = inputFolder else { return "未選択" }
         return url.path
     }
+
+    // MARK: - 作者・出版社
+
+    /// 作者名（ダイアログで入力）
+    @Published var author: String = ""
+
+    /// 出版社名（ダイアログで入力）
+    @Published var publisher: String = ""
 
     // MARK: - 処理状態
 

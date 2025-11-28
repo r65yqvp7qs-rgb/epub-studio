@@ -1,11 +1,10 @@
-//
-//  Converter.swift
+
+//  Core/Converter.swift
 //  EPUB Studio
-//
 
 import Foundation
-import AppKit
 import ImageIO
+import AppKit
 
 // 対応する画像拡張子
 private let validImageExtensions: Set<String> = [
@@ -21,12 +20,6 @@ private let spreadPairRegex =
 private let spreadLRRegex =
     try! NSRegularExpression(pattern: #"(\d+)\s*([LR])"#,
                              options: [.caseInsensitive])
-
-/// 論理ページ（PageSide が付く前の段階）
-enum LogicalItem {
-    case spread(right: URL, left: URL) // すでに左右に分かれている
-    case single(URL)                   // 単ページ
-}
 
 /// 画像フォルダ → EPUB 生成まで全部やる
 struct Converter {
@@ -62,6 +55,8 @@ struct Converter {
                 state.resetAllProgress()
                 state.appendLog("=== EPUB 生成開始（単一フォルダ）===")
                 state.appendLog("入力フォルダ: \(inputFolder.path)")
+                state.appendLog("作者 : \(state.author.isEmpty ? "不明" : state.author)")
+                state.appendLog("出版社 : \(state.publisher.isEmpty ? "不明" : state.publisher)")
             }
 
             do {
@@ -113,7 +108,6 @@ struct Converter {
             }
         }
 
-        // Swift concurrency 対策：async をまたぐので let にスナップショット
         let volumes = volumesTemp
 
         guard !volumes.isEmpty else {
@@ -135,6 +129,8 @@ struct Converter {
             state.resetAllProgress()
             state.appendLog("=== EPUB 一括生成開始（\(totalVolumes) フォルダ）===")
             state.appendLog("親フォルダ: \(inputFolder.path)")
+            state.appendLog("作者 : \(state.author.isEmpty ? "不明" : state.author)")
+            state.appendLog("出版社 : \(state.publisher.isEmpty ? "不明" : state.publisher)")
         }
 
         // 巻ごとに処理
@@ -214,13 +210,17 @@ struct Converter {
         }
 
         let title  = folder.lastPathComponent
-        let author = "EPUB Studio"
-
         let fileCount = files.count
+
+        // ログ用に作者・出版社をローカル変数にコピー
+        let author: String = await MainActor.run { state.author.isEmpty ? "不明" : state.author }
+        let publisher: String = await MainActor.run { state.publisher.isEmpty ? "不明" : state.publisher }
 
         await MainActor.run {
             state.appendLog("")
             state.appendLog("=== [\(volumeIndex)/\(totalVolumes)] \(title) ===")
+            state.appendLog("作者 : \(author)")
+            state.appendLog("出版社 : \(publisher)")
             state.appendLog("画像枚数: \(fileCount)")
         }
 
@@ -278,7 +278,6 @@ struct Converter {
             }
         }
 
-        // Swift concurrency 対策：async を挟むので let にコピー
         let converted = convertedTemp
         let convertedCount = converted.count
 
@@ -298,7 +297,6 @@ struct Converter {
                 state.appendLog("単ページ候補がないため、先頭画像サイズを基準に: \(Int(baseSize.width))x\(Int(baseSize.height))")
             }
         } else {
-            // ほぼ来ない想定
             baseSize = CGSize(width: 1440, height: 2048)
             await MainActor.run {
                 state.appendLog("⚠ 基準サイズ決定に失敗。デフォルト 1440x2048 を使用")
@@ -401,6 +399,7 @@ struct Converter {
         let builder = EPUBBuilder(
             title: title,
             author: author,
+            publisher: publisher,
             outputURL: outputURL,
             pages: pages,
             pageSize: baseSize,
@@ -484,7 +483,7 @@ struct Converter {
     ) throws -> (URL, URL) {
 
         guard let nsImage = NSImage(contentsOf: src),
-              var cgImage = nsImage.toCGImage() else {
+              let cgImage = nsImage.toCGImage() else {
             throw ImageConverterError.cannotLoadImage(src)
         }
 
@@ -497,29 +496,12 @@ struct Converter {
 
         // 幅が奇数なら 1px 落として偶数に（中央線バグ対策）
         let evenWidth = srcWidth - (srcWidth % 2)
-        if evenWidth != srcWidth {
-            let cropRect = CGRect(x: 0, y: 0, width: evenWidth, height: srcHeight)
-            if let cropped = cgImage.cropping(to: cropRect) {
-                cgImage = cropped
-            }
-        }
 
-        let halfWidth  = cgImage.width / 2
-        let fullHeight = cgImage.height
+        let halfWidth  = evenWidth / 2
+        let fullHeight = srcHeight
 
-        let leftRect = CGRect(
-            x: 0,
-            y: 0,
-            width: halfWidth,
-            height: fullHeight
-        )
-
-        let rightRect = CGRect(
-            x: halfWidth,
-            y: 0,
-            width: halfWidth,
-            height: fullHeight
-        )
+        let leftRect = CGRect(x: 0, y: 0, width: halfWidth, height: fullHeight)
+        let rightRect = CGRect(x: halfWidth, y: 0, width: halfWidth, height: fullHeight)
 
         guard
             let leftCG  = cgImage.cropping(to: leftRect),

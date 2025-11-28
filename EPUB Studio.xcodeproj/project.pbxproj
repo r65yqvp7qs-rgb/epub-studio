@@ -9,13 +9,16 @@
 /* Begin PBXBuildFile section */
 		5420EA8B2ED4796500E452A4 /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5420EA8A2ED4795300E452A4 /* LogView.swift */; };
 		545A2D312ED0878000F230F2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 545A2D2F2ED0878000F230F2 /* ContentView.swift */; };
-		545A2D322ED0878000F230F2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 545A2D2D2ED0878000F230F2 /* AppState.swift */; };
+		545E63752ED870DC0080BFA8 /* AuthorInfoDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 545E63742ED870D60080BFA8 /* AuthorInfoDialog.swift */; };
 		547E38502ED0ABC000413689 /* PageInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547E384F2ED0ABC000413689 /* PageInfo.swift */; };
 		547E38532ED0AC1000413689 /* ImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547E38522ED0AC1000413689 /* ImageLoader.swift */; };
 		547E38552ED0AC3A00413689 /* ImageConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547E38542ED0AC3A00413689 /* ImageConverter.swift */; };
-		547E38572ED0AC7D00413689 /* ImageSplitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547E38562ED0AC7D00413689 /* ImageSplitter.swift */; };
 		547E38592ED0ACEB00413689 /* EPUBBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547E38582ED0ACEB00413689 /* EPUBBuilder.swift */; };
-		547E385B2ED0ADDC00413689 /* Converter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547E385A2ED0ADDC00413689 /* Converter.swift */; };
+		54829D552ED9BFCC009EE8F2 /* Converter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54829D542ED9BFC7009EE8F2 /* Converter.swift */; };
+		54829D582ED9C03B009EE8F2 /* ImageSplitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54829D572ED9C038009EE8F2 /* ImageSplitter.swift */; };
+		54829D5A2ED9C0AA009EE8F2 /* LogicalItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54829D592ED9C0A6009EE8F2 /* LogicalItem.swift */; };
+		54829D5C2ED9C10C009EE8F2 /* NSImage+CGImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54829D5B2ED9C108009EE8F2 /* NSImage+CGImage.swift */; };
+		54829D5D2ED9DC77009EE8F2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54829D562ED9BFE3009EE8F2 /* AppState.swift */; };
 		54F1090E2ED091AA0026908F /* EPUB_StudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F1090D2ED091AA0026908F /* EPUB_StudioApp.swift */; };
 		54FCC7112ED0B3220037260C /* ConverterTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54FCC7102ED0B30B0037260C /* ConverterTypes.swift */; };
 /* End PBXBuildFile section */
@@ -39,15 +42,18 @@
 
 /* Begin PBXFileReference section */
 		5420EA8A2ED4795300E452A4 /* LogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
-		545A2D2D2ED0878000F230F2 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		545A2D2F2ED0878000F230F2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		545A2D332ED089A900F230F2 /* EPUB Studio.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = "EPUB Studio.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		545E63742ED870D60080BFA8 /* AuthorInfoDialog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorInfoDialog.swift; sourceTree = "<group>"; };
 		547E384F2ED0ABC000413689 /* PageInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageInfo.swift; sourceTree = "<group>"; };
 		547E38522ED0AC1000413689 /* ImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageLoader.swift; sourceTree = "<group>"; };
 		547E38542ED0AC3A00413689 /* ImageConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageConverter.swift; sourceTree = "<group>"; };
-		547E38562ED0AC7D00413689 /* ImageSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSplitter.swift; sourceTree = "<group>"; };
 		547E38582ED0ACEB00413689 /* EPUBBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EPUBBuilder.swift; sourceTree = "<group>"; };
-		547E385A2ED0ADDC00413689 /* Converter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Converter.swift; sourceTree = "<group>"; };
+		54829D542ED9BFC7009EE8F2 /* Converter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Converter.swift; sourceTree = "<group>"; };
+		54829D562ED9BFE3009EE8F2 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		54829D572ED9C038009EE8F2 /* ImageSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSplitter.swift; sourceTree = "<group>"; };
+		54829D592ED9C0A6009EE8F2 /* LogicalItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogicalItem.swift; sourceTree = "<group>"; };
+		54829D5B2ED9C108009EE8F2 /* NSImage+CGImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+CGImage.swift"; sourceTree = "<group>"; };
 		54E4853D2ED08463007792B4 /* EPUB Studio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "EPUB Studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		54E4854E2ED08464007792B4 /* EPUB StudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "EPUB StudioTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		54E485582ED08464007792B4 /* EPUB StudioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "EPUB StudioUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -96,13 +102,15 @@
 		545A2D262ED0876800F230F2 /* Core */ = {
 			isa = PBXGroup;
 			children = (
-				547E385A2ED0ADDC00413689 /* Converter.swift */,
+				54829D542ED9BFC7009EE8F2 /* Converter.swift */,
 				547E38582ED0ACEB00413689 /* EPUBBuilder.swift */,
 				547E38542ED0AC3A00413689 /* ImageConverter.swift */,
 				547E384F2ED0ABC000413689 /* PageInfo.swift */,
 				54FCC7102ED0B30B0037260C /* ConverterTypes.swift */,
 				547E38522ED0AC1000413689 /* ImageLoader.swift */,
-				547E38562ED0AC7D00413689 /* ImageSplitter.swift */,
+				54829D572ED9C038009EE8F2 /* ImageSplitter.swift */,
+				54829D592ED9C0A6009EE8F2 /* LogicalItem.swift */,
+				54829D5B2ED9C108009EE8F2 /* NSImage+CGImage.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -110,7 +118,7 @@
 		545A2D2E2ED0878000F230F2 /* State */ = {
 			isa = PBXGroup;
 			children = (
-				545A2D2D2ED0878000F230F2 /* AppState.swift */,
+				54829D562ED9BFE3009EE8F2 /* AppState.swift */,
 			);
 			path = State;
 			sourceTree = "<group>";
@@ -118,6 +126,7 @@
 		545A2D302ED0878000F230F2 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				545E63742ED870D60080BFA8 /* AuthorInfoDialog.swift */,
 				545A2D2F2ED0878000F230F2 /* ContentView.swift */,
 				5420EA8A2ED4795300E452A4 /* LogView.swift */,
 			);
@@ -301,16 +310,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				54829D582ED9C03B009EE8F2 /* ImageSplitter.swift in Sources */,
 				545A2D312ED0878000F230F2 /* ContentView.swift in Sources */,
-				545A2D322ED0878000F230F2 /* AppState.swift in Sources */,
 				547E38552ED0AC3A00413689 /* ImageConverter.swift in Sources */,
 				547E38532ED0AC1000413689 /* ImageLoader.swift in Sources */,
-				547E385B2ED0ADDC00413689 /* Converter.swift in Sources */,
-				547E38572ED0AC7D00413689 /* ImageSplitter.swift in Sources */,
+				545E63752ED870DC0080BFA8 /* AuthorInfoDialog.swift in Sources */,
 				54FCC7112ED0B3220037260C /* ConverterTypes.swift in Sources */,
 				547E38502ED0ABC000413689 /* PageInfo.swift in Sources */,
 				54F1090E2ED091AA0026908F /* EPUB_StudioApp.swift in Sources */,
+				54829D5C2ED9C10C009EE8F2 /* NSImage+CGImage.swift in Sources */,
+				54829D5D2ED9DC77009EE8F2 /* AppState.swift in Sources */,
 				5420EA8B2ED4796500E452A4 /* LogView.swift in Sources */,
+				54829D552ED9BFCC009EE8F2 /* Converter.swift in Sources */,
+				54829D5A2ED9C0AA009EE8F2 /* LogicalItem.swift in Sources */,
 				547E38592ED0ACEB00413689 /* EPUBBuilder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

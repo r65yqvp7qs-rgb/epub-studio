@@ -1,4 +1,6 @@
-// Core/ConverterTypes.swift
+
+//  Core/ConverterTypes.swift
+//  EPUB Studio
 
 import Foundation
 import CoreGraphics
@@ -13,7 +15,7 @@ struct ConvertedImage {
     let pixelSize: CGSize
     /// ファイル名（ログ用）
     let fileName: String
-    /// ファイル名から判定した見開き番号ペア（例: (2, 3)）
+    /// ファイル名から推定した見開き番号ペア (例: (2, 3))
     let spreadPair: (Int, Int)?
     /// 画像が横長（見開き想定）かどうか
     let isWide: Bool
