@@ -344,7 +344,7 @@ struct Converter {
                     state.appendLog("  ↳ 見開き（番号ペア）検出: \(pair.0)-\(pair.1)")
                 }
                 let baseName = "spread_\(pair.0)_\(pair.1)"
-                let (r, l) = try splitSpreadImage(
+                let (l, r) = try splitSpreadImage(
                     src: info.jpegURL,
                     baseName: baseName,
                     targetSize: baseSize,
@@ -358,7 +358,7 @@ struct Converter {
                     state.appendLog("  ↳ 見開き（横長）と判定")
                 }
                 let baseName = "spread_\(index+1)"
-                let (r, l) = try splitSpreadImage(
+                let (l, r) = try splitSpreadImage(
                     src: info.jpegURL,
                     baseName: baseName,
                     targetSize: baseSize,
@@ -541,7 +541,7 @@ struct Converter {
         // 左ページ → page-spread-left
         let leftURL  = try resizeAndSave(leftCG,  suffix: "L")
 
-        return (rightURL, leftURL)
+        return (leftURL, rightURL)
     }
 
     /// CGImage を指定サイズに高品質リサイズ

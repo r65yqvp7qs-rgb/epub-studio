@@ -166,15 +166,21 @@ struct EPUBBuilder {
           <meta charset="utf-8" />
         \(rendition)
           <style>
-            body, html {
-              margin: 0; padding: 0;
-              width: \(pageWidth)px;
-              height: \(pageHeight)px;
-              overflow: hidden;
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: #000;
+              height: 100%;
+              width: 100%;
+            }
+            body {
+              display: flex;
+              align-items: center;
+              justify-content: center;
             }
             img {
-              width: 100%;
-              height: 100%;
+              max-width: 100%;
+              max-height: 100%;
               object-fit: contain;
             }
           </style>
@@ -217,21 +223,21 @@ struct EPUBBuilder {
             \(manifestItems)
           </manifest>
 
-          <spine>
-            <itemref idref="toc"/>
-            \(spineItems)
+          <spine page-progression-direction="rtl">
+              \(spineItems)
           </spine>
         </package>
         """
     }
 
     // ================================================
-    // toc.xhtml 最小実装
+    // toc.xhtml 名前空間付き実装
     // ================================================
     private func makeTOC() -> String {
         return """
         <?xml version="1.0" encoding="utf-8"?>
-        <html xmlns="http://www.w3.org/1999/xhtml">
+        <html xmlns="http://www.w3.org/1999/xhtml"
+              xmlns:epub="http://www.idpf.org/2007/ops">
         <head><title>TOC</title></head>
         <body>
           <nav epub:type="toc">
