@@ -1,4 +1,3 @@
-
 //  Views/ContentView.swift
 //  EPUB Studio
 //
@@ -39,6 +38,10 @@ struct ContentView: View {
                 }
                 .disabled(state.isProcessing)
             }
+
+            Text("※ フォルダをこのウィンドウにドラッグ＆ドロップして選択することもできます")
+                .font(.caption)
+                .foregroundColor(.secondary)
 
             // MARK: - 進捗バー（3本＋全体）
             VStack(alignment: .leading, spacing: 8) {
@@ -120,6 +123,7 @@ struct ContentView: View {
         }
         .padding(16)
         .frame(minWidth: 720, minHeight: 520)
+        // フォルダ選択（ファイル選択パネル）
         .fileImporter(
             isPresented: $showingFolderPicker,
             allowedContentTypes: [.folder],
@@ -142,6 +146,8 @@ struct ContentView: View {
                 print("フォルダ選択エラー: \(error)")
             }
         }
+        // フォルダのドラッグ＆ドロップ対応
+        .onDrop(of: ["public.file-url"], isTargeted: nil, perform: handleDrop)
         // 作者・出版社入力ダイアログ
         .sheet(isPresented: $showingAuthorDialog) {
             AuthorInfoDialog(
@@ -179,6 +185,45 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    // MARK: - ドラッグ＆ドロップ処理
+
+    /// Finder からフォルダをドロップしたときに入力フォルダとしてセットする
+    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        guard let item = providers.first else { return false }
+
+        item.loadItem(forTypeIdentifier: "public.file-url", options: nil) { data, _ in
+            var url: URL?
+
+            if let d = data as? Data {
+                url = URL(dataRepresentation: d, relativeTo: nil)
+            } else {
+                url = data as? URL
+            }
+
+            guard let droppedURL = url else { return }
+
+            // ディレクトリかどうか確認
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: droppedURL.path, isDirectory: &isDir),
+                  isDir.boolValue else {
+                return
+            }
+
+            // UI 更新はメインアクターで
+            Task { @MainActor in
+                state.inputFolder = droppedURL
+                state.currentVolumeIndex = 0
+                state.currentVolumeTotal = 0
+                state.currentVolumeTitle = ""
+                state.resetAllProgress()
+                state.logText = ""
+                state.appendLog("ドラッグ＆ドロップでフォルダ選択: \(droppedURL.path)")
+            }
+        }
+
+        return true
     }
 }
 

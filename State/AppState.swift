@@ -1,4 +1,3 @@
-
 //  State/AppState.swift
 //  EPUB Studio
 

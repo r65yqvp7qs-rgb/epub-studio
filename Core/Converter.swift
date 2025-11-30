@@ -1,4 +1,3 @@
-
 //  Core/Converter.swift
 //  EPUB Studio
 
@@ -440,7 +439,7 @@ struct Converter {
     private static func isWideSize(_ size: CGSize) -> Bool {
         guard size.height > 0 else { return false }
         let ratio = size.width / size.height
-        return ratio >= 1.2   // 適当な閾値
+        return ratio >= 1.2   // 閾値
     }
 
     // MARK: - spread 判定
@@ -464,8 +463,7 @@ struct Converter {
            m.numberOfRanges >= 3,
            let r = Range(m.range(at: 1), in: fileName),
            let n = Int(fileName[r]) {
-            // 001L / 001R のようなものは「左右ペアの一部」だが、
-            // ファイルが1枚だけだと判定しようがないのでここでは簡易に (n, n+1)
+            // 001L / 001R など → 簡易的に (n, n+1)
             return (n, n + 1)
         }
 
@@ -503,8 +501,8 @@ struct Converter {
         let halfWidth  = evenWidth / 2
         let fullHeight = srcHeight
 
-        let leftRect = CGRect(x: 0, y: 0, width: halfWidth, height: fullHeight)
-        let rightRect = CGRect(x: halfWidth, y: 0, width: halfWidth, height: fullHeight)
+        let leftRect  = CGRect(x: 0,          y: 0, width: halfWidth, height: fullHeight)
+        let rightRect = CGRect(x: halfWidth,  y: 0, width: halfWidth, height: fullHeight)
 
         guard
             let leftCG  = cgImage.cropping(to: leftRect),
@@ -544,6 +542,7 @@ struct Converter {
         // 左ページ → page-spread-left
         let leftURL  = try resizeAndSave(leftCG,  suffix: "L")
 
+        // Converter 側で (l, r) と受け取り、.spread(right: r, left: l) にしている
         return (leftURL, rightURL)
     }
 
