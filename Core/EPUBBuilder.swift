@@ -246,6 +246,9 @@ struct EPUBBuilder {
             <dc:language>ja</dc:language>
             <meta property="dcterms:modified">\(iso8601Now)</meta>
 
+            <!-- EPUB2 互換のカバー指定（Finder / QuickLook 対策）-->
+            <meta name="cover" content="img1"/>
+
             <!-- 固定レイアウト指定 (EPUB3 FXL) -->
             <meta property="rendition:layout">pre-paginated</meta>
             <meta property="rendition:orientation">auto</meta>

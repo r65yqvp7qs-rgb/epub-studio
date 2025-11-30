@@ -412,6 +412,9 @@ struct Converter {
 
         try builder.build()
 
+        // ✅ 生成した EPUB を Books.app で開く（＝ライブラリに登録される）
+        NSWorkspace.shared.open(outputURL)
+
         await MainActor.run {
             state.setStep3Progress(1.0)
             state.appendLog("✅ EPUB Builder 完了: \(outputURL.lastPathComponent)")
