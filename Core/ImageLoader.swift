@@ -1,5 +1,5 @@
 //
-//  ImageLoader.swift
+//  Core/ImageLoader.swift
 //  EPUB Studio
 //
 

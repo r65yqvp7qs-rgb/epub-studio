@@ -1,3 +1,6 @@
+//  Core/NSImage+CGImage.swift
+//  EPUB Studio
+
 import AppKit
 
 extension NSImage {

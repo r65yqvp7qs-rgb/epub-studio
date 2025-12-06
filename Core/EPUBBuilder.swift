@@ -1,5 +1,5 @@
 //
-//  EPUBBuilder.swift
+//  Core/EPUBBuilder.swift
 //  EPUB Studio
 //
 

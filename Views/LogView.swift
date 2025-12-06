@@ -1,5 +1,5 @@
 //
-//  LogView.swift
+//  Views/LogView.swift
 //  EPUB Studio
 //
 

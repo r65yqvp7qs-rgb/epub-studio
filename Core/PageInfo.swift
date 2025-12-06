@@ -1,5 +1,5 @@
 //
-//  PageInfo.swift
+//  Core/PageInfo.swift
 //  EPUB Studio
 //
 

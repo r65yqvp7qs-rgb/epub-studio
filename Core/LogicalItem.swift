@@ -1,3 +1,6 @@
+//  Core/LogicalItem.swift
+//  EPUB Studio
+
 import Foundation
 
 /// 見開き or 単ページを表すデータ構造

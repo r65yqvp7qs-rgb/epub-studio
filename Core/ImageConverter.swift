@@ -1,5 +1,5 @@
 //
-//  ImageConverter.swift
+//  Core/ImageConverter.swift
 //  EPUB Studio
 //
 
