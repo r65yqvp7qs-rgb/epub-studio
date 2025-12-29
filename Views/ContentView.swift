@@ -102,6 +102,23 @@ struct ContentView: View {
             }
             .padding(.top, 4)
 
+            // ContentView 内のどこか（ログの上あたり）に追加するイメージ
+            VStack(alignment: .leading, spacing: 8) {
+                Text("全体の進捗")
+                    .font(.title3.bold())
+
+                ProgressView(value: state.totalProgress)
+                    .frame(maxWidth: .infinity)
+                    .scaleEffect(y: 2.0, anchor: .center)           // ← 他より明らかに太く
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .animation(.easeInOut(duration: 0.2), value: state.totalProgress)
+
+                Text(String(format: "%3.0f%% 完了", state.totalProgress * 100))
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 8)
+
             // MARK: - ログ見出し
             HStack {
                 Text("ログ")
@@ -229,20 +246,25 @@ struct ContentView: View {
 
 // MARK: - 進捗バー 1本
 
-private struct ProgressRow: View {
+struct ProgressRow: View {
     let title: String
-    let progress: Double  // 0〜1
+    let progress: Double
 
     var body: some View {
-        HStack(alignment: .center) {
+        HStack(spacing: 12) {                         // ← 間隔を明示的に小さく
             Text(title)
-                .font(.subheadline)
-            Spacer()
+                .font(.headline)                      // ← 項目名を大きめに
+                .frame(width: 140, alignment: .leading)
+
             ProgressView(value: progress)
-                .frame(maxWidth: 350)
+                .frame(maxWidth: .infinity)           // ← 画面幅いっぱい使う
+                .scaleEffect(y: 1.3, anchor: .center) // ← 細すぎない程度に太く
+                .animation(.easeInOut(duration: 0.2), value: progress)
+
             Text(String(format: "%3.0f%%", progress * 100))
-                .frame(width: 40, alignment: .trailing)
-                .font(.footnote)
+                .font(.subheadline.monospacedDigit()) // ← 数字は等幅で読みやすく
+                .frame(width: 50, alignment: .trailing)
         }
+        .padding(.vertical, 2)
     }
 }
