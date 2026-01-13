@@ -19,6 +19,7 @@
 		54829D5A2ED9C0AA009EE8F2 /* LogicalItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54829D592ED9C0A6009EE8F2 /* LogicalItem.swift */; };
 		54829D5C2ED9C10C009EE8F2 /* NSImage+CGImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54829D5B2ED9C108009EE8F2 /* NSImage+CGImage.swift */; };
 		54829D5D2ED9DC77009EE8F2 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54829D562ED9BFE3009EE8F2 /* AppState.swift */; };
+		5492F3252F029D2100AEB452 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5492F3242F029D2100AEB452 /* Assets.xcassets */; };
 		54F1090E2ED091AA0026908F /* EPUB_StudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F1090D2ED091AA0026908F /* EPUB_StudioApp.swift */; };
 		54FCC7112ED0B3220037260C /* ConverterTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54FCC7102ED0B30B0037260C /* ConverterTypes.swift */; };
 /* End PBXBuildFile section */
@@ -57,6 +58,7 @@
 		54829D572ED9C038009EE8F2 /* ImageSplitter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSplitter.swift; sourceTree = "<group>"; };
 		54829D592ED9C0A6009EE8F2 /* LogicalItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogicalItem.swift; sourceTree = "<group>"; };
 		54829D5B2ED9C108009EE8F2 /* NSImage+CGImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSImage+CGImage.swift"; sourceTree = "<group>"; };
+		5492F3242F029D2100AEB452 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		54E4853D2ED08463007792B4 /* EPUB Studio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "EPUB Studio.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		54E4854E2ED08464007792B4 /* EPUB StudioTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "EPUB StudioTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		54E485582ED08464007792B4 /* EPUB StudioUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "EPUB StudioUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -163,6 +165,7 @@
 				545A2D2E2ED0878000F230F2 /* State */,
 				545A2D302ED0878000F230F2 /* Views */,
 				54F1090D2ED091AA0026908F /* EPUB_StudioApp.swift */,
+				5492F3242F029D2100AEB452 /* Assets.xcassets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -300,6 +303,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5492F3252F029D2100AEB452 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -499,6 +503,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				DEVELOPMENT_TEAM = 4RK8BG6FMW;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -524,6 +530,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Preview Content\"";
+				DEVELOPMENT_TEAM = 4RK8BG6FMW;
+				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
